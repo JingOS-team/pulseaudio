@@ -1,0 +1,14 @@
+Index: pulseaudio/src/daemon/systemd/user/pulseaudio.service.in
+===================================================================
+--- pulseaudio.orig/src/daemon/systemd/user/pulseaudio.service.in
++++ pulseaudio/src/daemon/systemd/user/pulseaudio.service.in
+@@ -17,7 +17,8 @@ Requires=pulseaudio.socket
+ ConditionUser=!root
+ 
+ [Service]
+-ExecStart=@PA_BINARY@ --daemonize=no
++EnvironmentFile=-/etc/pulse/pulseaudio
++ExecStart=@PA_BINARY@ --daemonize=no --log-target=journal $CONFIG
+ LockPersonality=yes
+ MemoryDenyWriteExecute=yes
+ NoNewPrivileges=yes

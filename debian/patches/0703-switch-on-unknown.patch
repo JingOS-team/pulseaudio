@@ -1,0 +1,27 @@
+Index: pulseaudio-13.99.1/src/modules/module-switch-on-port-available.c
+===================================================================
+--- pulseaudio-13.99.1.orig/src/modules/module-switch-on-port-available.c
++++ pulseaudio-13.99.1/src/modules/module-switch-on-port-available.c
+@@ -287,7 +287,7 @@ static void switch_from_port(pa_device_p
+ 
+ 
+ static pa_hook_result_t port_available_hook_callback(pa_core *c, pa_device_port *port, void* userdata) {
+-    pa_assert(port);
++    struct port_pointers pp = find_port_pointers(port);
+ 
+     if (!port->card) {
+         pa_log_warn("Port %s does not have a card", port->name);
+@@ -303,6 +303,13 @@ static pa_hook_result_t port_available_h
+         return PA_HOOK_OK;
+ 
+     switch (port->available) {
++    case PA_AVAILABLE_UNKNOWN:
++        if (port->direction != PA_DIRECTION_INPUT)
++            return PA_HOOK_OK;
++        if (pp.source && pp.source->active_port && (pp.source->active_port->available != PA_AVAILABLE_UNKNOWN))
++            return PA_HOOK_OK;
++        switch_to_port(port);
++        break;
+     case PA_AVAILABLE_YES:
+         switch_to_port(port);
+         break;

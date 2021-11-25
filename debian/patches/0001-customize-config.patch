@@ -1,0 +1,26 @@
+From 9ff2b1a4c031397c927aba55f91a998f826acfec Mon Sep 17 00:00:00 2001
+From: Zhang Xingtao <zhangxingtao@jingos.com>
+Date: Thu, 15 Apr 2021 17:21:19 +0800
+Subject: [PATCH 1/1] customize config
+
+---
+ src/daemon/systemd/user/pulseaudio.service.in | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/daemon/systemd/user/pulseaudio.service.in b/src/daemon/systemd/user/pulseaudio.service.in
+index e2640b6..863fac9 100644
+--- a/src/daemon/systemd/user/pulseaudio.service.in
++++ b/src/daemon/systemd/user/pulseaudio.service.in
+@@ -17,7 +17,8 @@ Requires=pulseaudio.socket
+ ConditionUser=!root
+ 
+ [Service]
+-ExecStart=@PA_BINARY@ --daemonize=no --log-target=journal
++EnvironmentFile=-/etc/pulse/pulseaudio
++ExecStart=@PA_BINARY@ --daemonize=no --log-target=journal $CONFIG
+ LockPersonality=yes
+ MemoryDenyWriteExecute=yes
+ NoNewPrivileges=yes
+-- 
+2.7.4
+

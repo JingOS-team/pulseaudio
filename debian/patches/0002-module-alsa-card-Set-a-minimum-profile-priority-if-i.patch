@@ -1,0 +1,36 @@
+From 588ff60dcee5a45379e9e18ee78d6e1b96768d71 Mon Sep 17 00:00:00 2001
+From: Kai-Heng Feng <kai.heng.feng@canonical.com>
+Date: Thu, 6 Aug 2020 17:17:27 +0800
+Subject: [PATCH 2/2] module-alsa-card: Set a minimum profile priority if it's
+ not set
+
+If the profile is generated from UCM, the priority won't be set so it
+stays as 0.
+
+Assume a card has two available profiles, when the selected one becomes
+unavailable, module-switch-on-port-available's find_best_profile()
+should pick the next available one. However, since the priority is 0,
+the "off" profile was chosen instead of the available one.
+
+So let's set the priority to 1 to make profile that is available has
+higher priority than "off" profile.
+---
+ src/modules/alsa/module-alsa-card.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/modules/alsa/module-alsa-card.c b/src/modules/alsa/module-alsa-card.c
+index c5852b43d..d312fb5d9 100644
+--- a/src/modules/alsa/module-alsa-card.c
++++ b/src/modules/alsa/module-alsa-card.c
+@@ -144,7 +144,7 @@ static void add_profiles(struct userdata *u, pa_hashmap *h, pa_hashmap *ports) {
+         uint32_t idx;
+ 
+         cp = pa_card_profile_new(ap->name, ap->description, sizeof(struct profile_data));
+-        cp->priority = ap->priority;
++        cp->priority = ap->priority ? ap->priority : 1;
+         cp->input_name = pa_xstrdup(ap->input_name);
+         cp->output_name = pa_xstrdup(ap->output_name);
+ 
+-- 
+2.17.1
+

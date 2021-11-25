@@ -1,0 +1,33 @@
+git_cherrypick_fixes.patch
+disable-autospawn.patch
+git_config_upgrade.patch
+0032-alsa-mixer-store-the-ucm_device-with-the-order-of-th.patch
+0033-alsa-make-the-unsuspend-more-robust.patch
+0034-alsa-adjust-ucm-sink-source-priority-according-to-po.patch
+0035-ucm-add-possibility-to-skip-the-UCM-card-completely-.patch
+0036-device-port-queue-CARD-CHANGE-event-before-update-de.patch
+
+# Ubuntu specific config/fixes
+0001-volume-config-changes.patch
+0016-nodisplay-autostart.patch
+0030-load-module-switch-on-connect.patch
+gitlab_jack_identifier.patch
+0001-alsa-mixer-Recognize-USB-audio-jack-mixer.patch
+0002-module-alsa-card-Set-a-minimum-profile-priority-if-i.patch
+0001-alsa-mixer-Add-support-for-HP-Thunderbolt-Dock.patch
+0002-alsa-mixer-Expand-comments-in-the-HP-Thunderbolt-Doc.patch
+
+# Ubuntu Snap policy support
+0406-tagstruct-add-copy-method.patch
+0407-access-Add-access-control-hooks.patch
+0408-protocol-native-add-access-checks.patch
+0409-fix-arg-parsing-after-async-hook.patch
+0410-pa-client-peer-apparmor-label.patch
+0700-modules-add-snappy-policy-module.patch
+0701-enable-snap-policy-module.patch
+0702-add-snappy-policy-module.patch
+
+0703-switch-on-unknown.patch
+0001-customize-config.patch
+pulsecore-private-headers.patch
+access_header.patch

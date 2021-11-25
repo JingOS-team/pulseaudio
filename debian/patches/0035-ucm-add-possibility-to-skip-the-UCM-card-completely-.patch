@@ -1,0 +1,156 @@
+From 7a00c865f1e205c0c7891901cc4748ef43df31ee Mon Sep 17 00:00:00 2001
+From: Jaroslav Kysela <perex@perex.cz>
+Date: Sun, 7 Jun 2020 18:25:41 +0200
+Subject: [PATCH 2/2] ucm: add possibility to skip the UCM card completely
+ (Linked)
+
+We have a requirement to "hide" some hardware drivers, because
+other (main) UCM configuration will refer them.
+
+BugLink: https://github.com/alsa-project/alsa-ucm-conf/issues/30
+Signed-off-by: Jaroslav Kysela <perex@perex.cz>
+---
+ src/modules/alsa/alsa-ucm.c         | 16 ++++++++++++++--
+ src/modules/alsa/alsa-ucm.h         |  2 ++
+ src/modules/alsa/module-alsa-card.c | 10 ++++++++--
+ src/pulsecore/module.c              |  8 ++++++--
+ src/pulsecore/module.h              |  2 ++
+ 5 files changed, 32 insertions(+), 6 deletions(-)
+
+diff --git a/src/modules/alsa/alsa-ucm.c b/src/modules/alsa/alsa-ucm.c
+index 9d6456162..c837ca921 100644
+--- a/src/modules/alsa/alsa-ucm.c
++++ b/src/modules/alsa/alsa-ucm.c
+@@ -722,7 +722,7 @@ static void append_lost_relationship(pa_alsa_ucm_device *dev) {
+ 
+ int pa_alsa_ucm_query_profiles(pa_alsa_ucm_config *ucm, int card_index) {
+     char *card_name;
+-    const char **verb_list;
++    const char **verb_list, *value;
+     int num_verbs, i, err = 0;
+ 
+     /* support multiple card instances, address card directly by index */
+@@ -746,12 +746,24 @@ int pa_alsa_ucm_query_profiles(pa_alsa_ucm_config *ucm, int card_index) {
+         }
+     }
+ 
++    err = snd_use_case_get(ucm->ucm_mgr, "=Linked", &value);
++    if (err >= 0) {
++        if (strcasecmp(value, "true") == 0 || strcasecmp(value, "1") == 0) {
++            free((void *)value);
++            pa_log_info("Empty (linked) UCM for card %s", card_name);
++            err = -PA_ALSA_ERR_UCM_LINKED;
++            goto ucm_verb_fail;
++        }
++        free((void *)value);
++    }
++
+     pa_log_info("UCM available for card %s", card_name);
+ 
+     /* get a list of all UCM verbs (profiles) for this card */
+     num_verbs = snd_use_case_verb_list(ucm->ucm_mgr, &verb_list);
+     if (num_verbs < 0) {
+         pa_log("UCM verb list not found for %s", card_name);
++        err = num_verbs;
+         goto ucm_verb_fail;
+     }
+ 
+@@ -771,7 +783,7 @@ int pa_alsa_ucm_query_profiles(pa_alsa_ucm_config *ucm, int card_index) {
+ 
+     if (!ucm->verbs) {
+         pa_log("No UCM verb is valid for %s", card_name);
+-        err = -1;
++        err = -ENOENT;
+     }
+ 
+     snd_use_case_free_list(verb_list, num_verbs);
+diff --git a/src/modules/alsa/alsa-ucm.h b/src/modules/alsa/alsa-ucm.h
+index e7a795ced..3244dc2eb 100644
+--- a/src/modules/alsa/alsa-ucm.h
++++ b/src/modules/alsa/alsa-ucm.h
+@@ -30,6 +30,8 @@ typedef void snd_use_case_mgr_t;
+ 
+ #include "alsa-mixer.h"
+ 
++#define PA_ALSA_ERR_UCM_LINKED	(9999)
++
+ /** For devices: List of verbs, devices or modifiers available */
+ #define PA_ALSA_PROP_UCM_NAME                       "alsa.ucm.name"
+ 
+diff --git a/src/modules/alsa/module-alsa-card.c b/src/modules/alsa/module-alsa-card.c
+index c5852b43d..05490ef9a 100644
+--- a/src/modules/alsa/module-alsa-card.c
++++ b/src/modules/alsa/module-alsa-card.c
+@@ -785,6 +785,7 @@ int pa__init(pa_module *m) {
+     const char *profile_str = NULL;
+     char *fn = NULL;
+     bool namereg_fail = false;
++    int err = -1, rval;
+ 
+     pa_alsa_refcnt_inc();
+ 
+@@ -841,7 +842,12 @@ int pa__init(pa_module *m) {
+ 
+     snd_config_update_free_global();
+ 
+-    if (u->use_ucm && !pa_alsa_ucm_query_profiles(&u->ucm, u->alsa_card_index)) {
++    rval = u->use_ucm ? pa_alsa_ucm_query_profiles(&u->ucm, u->alsa_card_index) : -1;
++    if (rval == -PA_ALSA_ERR_UCM_LINKED) {
++        err = -PA_MODULE_ERR_SKIP;
++        goto fail;
++    }
++    if (rval == 0) {
+         pa_log_info("Found UCM profiles");
+ 
+         u->profile_set = pa_alsa_ucm_add_profile_set(&u->ucm, &u->core->default_channel_map);
+@@ -1009,7 +1015,7 @@ fail:
+ 
+     pa__done(m);
+ 
+-    return -1;
++    return err;
+ }
+ 
+ int pa__get_n_used(pa_module *m) {
+diff --git a/src/pulsecore/module.c b/src/pulsecore/module.c
+index 70b816072..15a54b6ec 100644
+--- a/src/pulsecore/module.c
++++ b/src/pulsecore/module.c
+@@ -116,7 +116,7 @@ int pa_module_load(pa_module** module, pa_core *c, const char *name, const char
+     bool (*load_once)(void);
+     const char* (*get_deprecated)(void);
+     pa_modinfo *mi;
+-    int errcode;
++    int errcode, rval;
+ 
+     pa_assert(module);
+     pa_assert(c);
+@@ -188,7 +188,11 @@ int pa_module_load(pa_module** module, pa_core *c, const char *name, const char
+     pa_assert_se(pa_idxset_put(c->modules, m, &m->index) >= 0);
+     pa_assert(m->index != PA_IDXSET_INVALID);
+ 
+-    if (m->init(m) < 0) {
++    if ((rval = m->init(m)) < 0) {
++        if (rval == -PA_MODULE_ERR_SKIP) {
++            errcode = -PA_ERR_NOENTITY;
++            goto fail;
++        }
+         pa_log_error("Failed to load module \"%s\" (argument: \"%s\"): initialization failed.", name, argument ? argument : "");
+         errcode = -PA_ERR_IO;
+         goto fail;
+diff --git a/src/pulsecore/module.h b/src/pulsecore/module.h
+index b5a7fad77..0f4d91e0b 100644
+--- a/src/pulsecore/module.h
++++ b/src/pulsecore/module.h
+@@ -30,6 +30,8 @@ typedef struct pa_module pa_module;
+ 
+ #include <pulsecore/core.h>
+ 
++#define PA_MODULE_ERR_SKIP (9999)
++
+ struct pa_module {
+     pa_core *core;
+     char *name, *argument;
+-- 
+2.17.1
+

@@ -1,0 +1,59 @@
+From 2ae94c141ff4d76d60a66a71d80acefbba3966d1 Mon Sep 17 00:00:00 2001
+From: Libin Yang <libin.yang@intel.com>
+Date: Sat, 13 Jun 2020 06:27:08 -0400
+Subject: [PATCH] device-port: queue CARD CHANGE event before update default
+ sink
+
+In single profile mode (headphone and speaker use different PCMs),
+when headphone is plugged in, pa_device_port_set_available() will call
+pa_core_update_default_sink/source() before posting
+PA_SUBSCRIPTION_EVENT_CARD|PA_SUBSCRIPTION_EVENT_CHANGE to the gnome.
+And pa_core_update_default_sink/source() will post
+PA_SUBSCRIPTION_EVENT_SERVER | PA_SUBSCRIPTION_EVENT_CHANGE to the gnome.
+So the original event sequence is:
+1. PA_SUBSCRIPTION_EVENT_SERVER | PA_SUBSCRIPTION_EVENT_CHANGE
+2. PA_SUBSCRIPTION_EVENT_CARD | PA_SUBSCRIPTION_EVENT_CHANGE
+
+In gnome-control-center:
+When it receives PA_SUBSCRIPTION_EVENT_SERVER, it will call
+req_update_server_info () to update the panel;
+When it receives PA_SUBSCRIPTION_EVENT_CARD, it will update
+the card information, for example, when the headphone is connected,
+it will call gtk_list_store_append() to append the headphone.
+
+Let's use an example to clarify the correct sequence.
+Assume we plug in headphone. PA will set the default sink to headphone
+from speaker, and hope gnome sound setting "Output Deivce" to highlight to
+"headphone". PA should send PA_SUBSCRIPTION_EVENT_CARD firstly to notify
+gnome-control-center "headphone" is plugged in. And then it sends
+PA_SUBSCRIPTION_EVENT_SERVER to trigger sound setting to highlight
+to "headphone".
+
+Signed-off-by: Libin Yang <libin.yang@intel.com>
+---
+ src/pulsecore/device-port.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+Index: pulseaudio/src/pulsecore/device-port.c
+===================================================================
+--- pulseaudio.orig/src/pulsecore/device-port.c
++++ pulseaudio/src/pulsecore/device-port.c
+@@ -92,6 +92,8 @@ void pa_device_port_set_available(pa_dev
+      * be created before port objects, and then p->card could be non-NULL for
+      * the whole lifecycle of pa_device_port. */
+     if (p->card && p->card->linked) {
++        pa_subscription_post(p->core, PA_SUBSCRIPTION_EVENT_CARD|PA_SUBSCRIPTION_EVENT_CHANGE, p->card->index);
++        pa_hook_fire(&p->core->hooks[PA_CORE_HOOK_PORT_AVAILABLE_CHANGED], p);
+         /* A sink or source whose active port is unavailable can't be the
+          * default sink/source, so port availability changes may affect the
+          * default sink/source choice. */
+@@ -123,9 +125,6 @@ void pa_device_port_set_available(pa_dev
+                     pa_core_move_streams_to_newly_available_preferred_source(p->core, source);
+             }
+         }
+-
+-        pa_subscription_post(p->core, PA_SUBSCRIPTION_EVENT_CARD|PA_SUBSCRIPTION_EVENT_CHANGE, p->card->index);
+-        pa_hook_fire(&p->core->hooks[PA_CORE_HOOK_PORT_AVAILABLE_CHANGED], p);
+     }
+ }
+ 

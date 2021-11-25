@@ -1,0 +1,10 @@
+--- a/src/Makefile.am 2021-08-20 13:16:17.044818752 +0000
++++ b/src/Makefile.am 2021-08-20 13:24:24.963530472 +0000
+@@ -853,6 +853,7 @@
+ ###################################
+ 
+ pulsecoreinclude_HEADERS = \
++                pulsecore/access.h \
+                 pulsecore/arpa-inet.h \
+                 pulsecore/asyncmsgq.h \
+                 pulsecore/asyncq.h \
